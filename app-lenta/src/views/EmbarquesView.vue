@@ -1,66 +1,67 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useEmbarques } from '../composables/useEmbarques'
+import { obtenerEmbarquesVisibles } from '../utils/obtenerEmbarquesVisibles'
 import type { EmbarqueVista } from '../tipos'
 
 const { embarques, cargando, vencidos } = useEmbarques()
 
 const busqueda = ref('')
 const estadoSeleccionado = ref('')
-const ordenCampo = ref<'etd' | 'eta' | ''>('')
+const ordenCampo = ref<'' | 'etd' | 'eta'>('')
 const ordenAsc = ref(true)
+const pagina = ref(1)
 
+const TAMANO_PAGINA = 100
 const ESTADOS = ['pendiente', 'en_transito', 'en_puerto', 'nacionalizacion', 'entregado', 'cancelado']
 
-function normalizar(texto: string) {
-  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-}
-
-function embarquesVisibles(): EmbarqueVista[] {
-  let lista = embarques.value
-
-  if (busqueda.value) {
-    const q = normalizar(busqueda.value)
-    lista = lista.filter(e =>
-      normalizar(e.cliente).includes(q) ||
-      normalizar(e.referencia).includes(q) ||
-      normalizar(e.documento).includes(q)
-    )
-  }
-
-  if (estadoSeleccionado.value) {
-    lista = lista.filter(e => e.estado === estadoSeleccionado.value)
-  }
-
-  if (!ordenCampo.value) return lista
-
-  const campo = ordenCampo.value
-  return [...lista].sort((a, b) => {
-    const va = a[campo] || ''
-    const vb = b[campo] || ''
-    return ordenAsc.value ? va.localeCompare(vb) : vb.localeCompare(va)
+const filtrados = computed<EmbarqueVista[]>(() =>
+  obtenerEmbarquesVisibles(embarques.value, {
+    busqueda: busqueda.value,
+    estado: estadoSeleccionado.value,
+    ordenCampo: ordenCampo.value,
+    ordenAsc: ordenAsc.value
   })
-}
+)
 
-function formatearFecha(iso: string) {
+const totalPaginas = computed(() => Math.max(1, Math.ceil(filtrados.value.length / TAMANO_PAGINA)))
+const paginaActual = computed(() => Math.min(Math.max(1, pagina.value), totalPaginas.value))
+const paginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * TAMANO_PAGINA
+  return filtrados.value.slice(inicio, inicio + TAMANO_PAGINA)
+})
+
+watch([busqueda, estadoSeleccionado, ordenCampo, ordenAsc], () => {
+  pagina.value = 1
+})
+
+const formatoFecha = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+const formatoPeso = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 })
+
+function formatearFecha(iso: string | null) {
   if (!iso) return '—'
-  const formato = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
-  return formato.format(new Date(iso + 'T00:00:00'))
+  return formatoFecha.format(new Date(iso + 'T00:00:00'))
 }
 
 function formatearPeso(kg: number) {
-  const formato = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 })
-  return formato.format(kg) + ' kg'
+  return formatoPeso.format(kg) + ' kg'
 }
 
 function ordenarPor(campo: 'etd' | 'eta') {
   if (ordenCampo.value === campo) ordenAsc.value = !ordenAsc.value
-  else { ordenCampo.value = campo; ordenAsc.value = true }
+  else {
+    ordenCampo.value = campo
+    ordenAsc.value = true
+  }
 }
 
-watch(embarques, () => {
-  console.log('embarques actualizados:', embarques.value.length)
-}, { deep: true })
+function anterior() {
+  if (paginaActual.value > 1) pagina.value = paginaActual.value - 1
+}
+
+function siguiente() {
+  if (paginaActual.value < totalPaginas.value) pagina.value = paginaActual.value + 1
+}
 </script>
 
 <template>
@@ -76,7 +77,7 @@ watch(embarques, () => {
         <option value="">Todos los estados</option>
         <option v-for="e in ESTADOS" :key="e" :value="e">{{ e }}</option>
       </select>
-      <span class="conteo">{{ embarquesVisibles().length }} de {{ embarques.length }}</span>
+      <span class="conteo">{{ filtrados.length }} de {{ embarques.length }}</span>
     </div>
 
     <p v-if="cargando" class="nota">Cargando…</p>
@@ -98,7 +99,7 @@ watch(embarques, () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(e, i) in embarquesVisibles()" :key="i">
+          <tr v-for="e in paginados" :key="e.id">
             <td>{{ e.id }}</td>
             <td>{{ e.referencia }}</td>
             <td>{{ e.cliente }}</td>
@@ -113,5 +114,11 @@ watch(embarques, () => {
         </tbody>
       </table>
     </div>
+
+    <footer class="paginador" v-if="!cargando">
+      <button :disabled="paginaActual <= 1" @click="anterior">← Anterior</button>
+      <span>Página {{ paginaActual }} de {{ totalPaginas }}</span>
+      <button :disabled="paginaActual >= totalPaginas" @click="siguiente">Siguiente →</button>
+    </footer>
   </section>
 </template>
