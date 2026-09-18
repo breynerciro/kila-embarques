@@ -8,7 +8,7 @@ export interface Embarque {
   destino: string
   incoterm: string
   etd: string
-  eta: string
+  eta: string | null
   documento: string
   contenedores: string[]
   pesoKg: number
@@ -19,4 +19,5 @@ export interface EmbarqueVista extends Embarque {
   diasParaEta: number | null
   estadoLegible: string
   resumenContenedores: string
+  textoBusqueda?: string
 }

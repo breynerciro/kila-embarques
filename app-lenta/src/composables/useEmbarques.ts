@@ -1,4 +1,5 @@
 import { ref, shallowRef, onMounted, onUnmounted } from 'vue'
+import { construirTextoBusqueda } from '../utils/obtenerEmbarquesVisibles'
 import type { Embarque, EmbarqueVista } from '../tipos'
 
 const DIA = 86400000
@@ -61,6 +62,7 @@ export function useEmbarques() {
         diasParaEta: e.eta ? Math.round((new Date(e.eta + 'T00:00:00').getTime() - hoy) / DIA) : null,
         estadoLegible: (e.estado || 'sin estado').replace(/_/g, ' '),
         resumenContenedores: e.contenedores.length ? e.contenedores.join(', ') : 'sin asignar',
+        textoBusqueda: construirTextoBusqueda(e)
       }))
 
       actualizarVencidos()
