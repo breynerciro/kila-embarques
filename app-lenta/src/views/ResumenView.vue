@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { cargarEmbarques } from '../composables/useEmbarques'
 import type { Embarque } from '../tipos'
 
 const embarques = ref<Embarque[]>([])
 
 onMounted(async () => {
-  embarques.value = await (await fetch('/embarques.json')).json()
+  embarques.value = await cargarEmbarques()
 })
 
 const porEstado = computed(() => {
